@@ -12,7 +12,7 @@ app = FastAPI(
 )
 
 # --- CONFIGURACIÓN ---
-MODEL_PATH = "model/plant_model.h5"
+MODEL_PATH = "models/plant_model.keras"
 class_names = ['deficiencia', 'fusario', 'sanas']
 
 # Variable global para el modelo
