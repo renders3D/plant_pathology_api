@@ -1,51 +1,41 @@
-name: Build and Publish Docker Image
+name: Build and Push to Azure ACR
 
 on:
   push:
     branches: [ "main" ]
 
-# Definimos variables de entorno para usar el registro de GitHub (ghcr.io)
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
-  build-and-push:
+  build-and-push-azure:
     runs-on: ubuntu-latest
     
-    # PERMISOS: Esto es vital. Le damos permiso a la Action para escribir en "packages"
-    permissions:
-      contents: read
-      packages: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Iniciar sesión en el Registry
-      - name: Log in to the Container registry
+      # 1. Iniciar sesión en Azure Container Registry (ACR)
+      - name: Log in to Azure Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
 
-      # Extraer metadatos (genera los tags automáticamente, ej: :latest, :sha-123)
-      - name: Extract metadata (tags, labels) for Docker
+      # 2. Extraer metadatos
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ secrets.ACR_LOGIN_SERVER }}/plantpathology_api
           tags: |
             type=raw,value=latest
             type=sha,format=short
 
-      # Construir y Subir (Push) la imagen
+      # 3. Construir y Subir a AZURE
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          push: true # <--- ESTO ES LO QUE HABILITA LA SUBIDA
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
