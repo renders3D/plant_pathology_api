@@ -68,7 +68,7 @@ def load_model():
 def preprocess_image(image_bytes):
     try:
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        image = image.resize((224, 224)) 
+        image = image.resize((256, 256)) 
         
         # Normalización (igual que antes)
         img_array = np.array(image, dtype=np.float32) / 255.0
