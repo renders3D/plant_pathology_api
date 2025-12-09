@@ -5,3 +5,4 @@ tensorflow
 numpy
 pillow
 requests
+azure-storage-blob
