@@ -2,6 +2,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 import tensorflow as tf
 import numpy as np
 from PIL import Image
+from keras.preprocessing.image import img_to_array
 import io
 import uvicorn
 import os
@@ -10,6 +11,8 @@ import uuid
 import json
 from datetime import datetime
 from azure.storage.blob import BlobServiceClient
+
+from modules.types import PredictionResult
 
 app = FastAPI(
     title="Plant Pathology API + Observability",
@@ -111,8 +114,9 @@ def save_prediction_data(image_bytes, prediction_result, filename):
 
 def preprocess_image(image_bytes):
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    image = image.resize((224, 224)) 
-    img_array = np.array(image, dtype=np.float32) / 255.0
+    image = image.resize((256, 256)) 
+    # img_array = np.array(image, dtype=np.float32) / 255.0
+    img_array = img_to_array(image)
     img_array = np.expand_dims(img_array, axis=0)
     return img_array
 
@@ -121,7 +125,7 @@ def home():
     return {"status": "online", "observability": "active", "docs_url": "/docs"}
 
 @app.post("/predict")
-async def predict(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+async def predict(background_tasks: BackgroundTasks, file: UploadFile = File(...), top_k: int = 3):
     if interpreter is None:
         raise HTTPException(status_code=503, detail="Modelo no listo.")
     
@@ -134,14 +138,17 @@ async def predict(background_tasks: BackgroundTasks, file: UploadFile = File(...
     output_data = interpreter.get_tensor(output_details[0]['index'])
     
     predictions = output_data[0]
-    class_idx = np.argmax(predictions)
-    confidence = float(np.max(predictions))
-    result_class = class_names[class_idx]
 
-    result_json = {
-        "prediction": result_class,
-        "confidence": round(confidence * 100, 2)
-    }
+    # Asegurar top_k válido y generar resultados
+    k = int(top_k)
+    if k <= 0:
+        k = 1
+    k = min(k, predictions.shape[0])
+
+    result_json = {}
+    for i in range(0, k):
+        label = class_names[i] if class_names and i < len(class_names) else f"Clase {i}"
+        result_json[label] = float(predictions[i])
 
     # --- ENCOLAR TAREA DE LOGGING ---
     background_tasks.add_task(save_prediction_data, contents, result_json, file.filename)
