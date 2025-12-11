@@ -6,3 +6,5 @@ numpy
 pillow
 requests
 azure-storage-blob
+pytest
+httpx
