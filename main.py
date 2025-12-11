@@ -12,8 +12,6 @@ import json
 from datetime import datetime
 from azure.storage.blob import BlobServiceClient
 
-from modules.types import PredictionResult
-
 app = FastAPI(
     title="Plant Pathology API + Observability",
     description="API con Data Logging asíncrono para MLOps",
@@ -115,7 +113,7 @@ def save_prediction_data(image_bytes, prediction_result, filename):
 def preprocess_image(image_bytes):
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     image = image.resize((256, 256)) 
-    # img_array = np.array(image, dtype=np.float32) / 255.0
+    img_array = np.array(image, dtype=np.float32) / 255.0
     img_array = img_to_array(image)
     img_array = np.expand_dims(img_array, axis=0)
     return img_array
