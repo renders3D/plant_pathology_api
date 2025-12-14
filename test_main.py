@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from main import app
 import io
 from PIL import Image
+import numpy as np
 
 client = TestClient(app)
 
@@ -13,56 +14,54 @@ def test_read_main():
 
 def test_predict_endpoint_structure():
     """
-    Prueba que el endpoint /predict acepte una imagen 
-    y devuelva la estructura JSON correcta.
-    (No validamos la predicción exacta porque el modelo puede variar,
-     validamos que la API no explote).
+    Prueba que el endpoint /predict devuelva el nuevo formato JSON
+    con probabilidades para las 3 clases.
     """
-    # 1. Crear una imagen falsa en memoria (negra)
+    # 1. Crear una imagen falsa (negra) de 224x224
     file_bytes = io.BytesIO()
-    image = Image.new('RGB', (256, 256), color='red')
+    image = Image.new('RGB', (224, 224), color='red')
     image.save(file_bytes, format='JPEG')
-    file_bytes.seek(0) # Volver al inicio del archivo
+    file_bytes.seek(0)
 
-    # 2. Enviar la imagen a la API
-    # Usamos un nombre de archivo dummy
+    # 2. Enviar a la API
     files = {"file": ("test_image.jpg", file_bytes, "image/jpeg")}
-    
-    # Nota: Al usar TestClient, las BackgroundTasks se ejecutan síncronamente o se ignoran 
-    # dependiendo de la config, pero no fallan si no hay credenciales de Azure reales en el test.
     response = client.post("/predict", files=files)
     
     # 3. Validaciones
     if response.status_code == 503:
-        # Es aceptable que falle con 503 si el modelo no se descargó en el entorno de test
-        # (GitHub Actions a veces no tiene conexión o tiempo para bajar 200MB en el test unitario)
+        # Aceptable si el modelo no se ha descargado en el entorno CI
         assert response.json()["detail"] == "Modelo no listo."
     else:
-        # Si el modelo cargó (o si mockeamos), debe ser 200
         assert response.status_code == 200
         data = response.json()
+        
+        # Validar el nuevo formato (Diccionario de probabilidades)
         assert "deficiencia" in data
         assert "fusario" in data
         assert "sanas" in data
-        # Verificar que los scores sean números
-        assert isinstance(data["deficiencia"], float)
+        
+        # Validar que los valores sean floats
         assert isinstance(data["fusario"], float)
-        assert isinstance(data["sanas"], float)
 
 def test_preprocess_logic():
-    """Prueba unitaria de la lógica de redimensionamiento"""
+    """
+    Prueba unitaria de la lógica de redimensionamiento para EfficientNet.
+    Debe ser 224x224 y valores 0-255 (NO normalizados a 0-1).
+    """
     from main import preprocess_image
-    import numpy as np
     
     # Crear imagen gigante
     file_bytes = io.BytesIO()
-    Image.new('RGB', (1000, 1000)).save(file_bytes, format='JPEG')
+    Image.new('RGB', (1000, 1000), color='white').save(file_bytes, format='JPEG')
     file_bytes.seek(0)
     
     # Ejecutar preprocesamiento
     result = preprocess_image(file_bytes.read())
     
-    # Validar que salga con el tamaño que espera el modelo (256x256 según tu último fix)
-    assert result.shape == (1, 256, 256, 3)
-    # Validar que esté normalizado (0-1)
-    assert result.max() <= 1.0
+    # 1. Validar tamaño (EfficientNet usa 224x224 nativo)
+    assert result.shape == (1, 224, 224, 3)
+    
+    # 2. Validar rango de valores (EfficientNet espera 0-255)
+    # Una imagen blanca ('white') tendrá valores cercanos a 255
+    assert result.max() > 1.0 
+    assert result.max() <= 255.0
