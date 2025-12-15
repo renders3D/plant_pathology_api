@@ -66,3 +66,7 @@ Run the automated test suite to validate the API logic and image preprocessing:
 ```bash
 pip install -r requirements.txt
 pytest test_main.py
+```
+
+## 
+*Authored by Carlos Luis Noriega - Lead AI Engineer*
